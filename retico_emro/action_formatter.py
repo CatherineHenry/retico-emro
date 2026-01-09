@@ -38,7 +38,6 @@ class ActionExecutionModule(abstract.AbstractModule):
         # split on spaces following a number, otherwise we have erroneous split on some "say text" that has a space in it
         for token in re.split(r'(?<=\d)\s+', actions_str):
             if token.startswith("say_text_"):
-                token = "say_" + token[len("say_text_"):]
                 rest = token[len("say_text_"):]
                 parts = rest.split("_")
                 sentence = parts[0]
