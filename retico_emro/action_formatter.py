@@ -66,7 +66,7 @@ class ActionExecutionModule(abstract.AbstractModule):
                 face_image = cozmo.oled_face.convert_image_to_screen_data(face_image, invert_image=False)
                 # dispatch to robot
                 try:
-                    self.robot.display_oled_face_image(face_image, duration_ms=int(timeout) * 1000.0, in_parallel=True)
+                    self.robot.display_oled_face_image(face_image, duration_ms=float(timeout) * 1000.0, in_parallel=True)
                 except exceptions.RobotBusy:
                     print("Already have a face in action. Continuing execution.")
                 continue
@@ -133,8 +133,11 @@ class ActionExecutionModule(abstract.AbstractModule):
                 # # TODO: This is clunky...do it better
                 output_iu.payload = iu.grounded_in.payload
                 output_iu.execution_uuid = iu.grounded_in.execution_uuid
+                output_iu.payload = iu.grounded_in.grounded_in.grounded_in.payload
+                output_iu.execution_uuid = iu.grounded_in.grounded_in.grounded_in.execution_uuid
+
+
 
                 # # Pass through the object permanence iu. We need it pretty intact because we use that grounded in
-                output_iu = retico_core.UpdateMessage.from_iu(iu.grounded_in, retico_core.UpdateType.ADD)
+                return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
 
-                return output_iu
