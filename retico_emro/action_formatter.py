@@ -7,6 +7,7 @@ from cozmo.util import degrees, Angle
 
 import retico_core
 from retico_core import abstract, UpdateType
+from retico_core.text import TextIU
 from retico_gred.gred_module import GREDTextIU
 from retico_vision import ObjectPermanenceIU
 
@@ -24,9 +25,7 @@ class ActionExecutionModule(abstract.AbstractModule):
 
     @staticmethod
     def output_iu():
-        # So we can pass object permanence information on downstream
-        # TODO: would be nice to have a less clunky way of doing this
-        return ObjectPermanenceIU
+        return TextIU
 
     def __init__(self, robot, **kwargs):
         super().__init__(**kwargs)
@@ -41,6 +40,14 @@ class ActionExecutionModule(abstract.AbstractModule):
                 rest = token[len("say_text_"):]
                 parts = rest.split("_")
                 sentence = parts[0]
+                # duration = ""
+                # for part in parts:
+                #     if part.isdigit():
+                #         duration+=part
+                #     else:
+                #         sentence+=part
+                # # self.robot.set_robot_volume(1)
+
                 sentence = "aawwhn" if sentence == "yawn" else sentence
                 # self.robot.say_text(text=sentence, duration_scalar=int(duration), in_parallel=True)
                 self.robot.say_text(text=sentence, in_parallel=True).wait_for_completed()
@@ -129,15 +136,8 @@ class ActionExecutionModule(abstract.AbstractModule):
 
                 # prepare result update
                 output_iu = self.create_iu(iu)
-                # # Pass the input IU along
-                # # TODO: This is clunky...do it better
-                output_iu.payload = iu.grounded_in.payload
-                output_iu.execution_uuid = iu.grounded_in.execution_uuid
-                output_iu.payload = iu.grounded_in.grounded_in.grounded_in.payload
+                output_iu.payload = "Emotion Actions Complete" # Have an output so we can verify the actions executed before continuing to next Module
                 output_iu.execution_uuid = iu.grounded_in.grounded_in.grounded_in.execution_uuid
 
-
-
-                # # Pass through the object permanence iu. We need it pretty intact because we use that grounded in
                 return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
 
