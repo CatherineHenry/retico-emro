@@ -9,7 +9,6 @@ import retico_core
 from retico_core import abstract, UpdateType
 from retico_core.text import TextIU
 from retico_gred.gred_module import GREDTextIU
-from retico_vision import ObjectPermanenceIU
 
 
 class ActionExecutionModule(abstract.AbstractModule):
@@ -137,7 +136,6 @@ class ActionExecutionModule(abstract.AbstractModule):
                 # prepare result update
                 output_iu = self.create_iu(iu)
                 output_iu.payload = "Emotion Actions Complete" # Have an output so we can verify the actions executed before continuing to next Module
-                output_iu.execution_uuid = iu.grounded_in.grounded_in.grounded_in.execution_uuid
 
                 return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
 
