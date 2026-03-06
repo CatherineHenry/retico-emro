@@ -50,7 +50,8 @@ class ActionExecutionModule(abstract.AbstractModule):
                 #         sentence+=part
                 # # self.robot.set_robot_volume(1)
 
-                sentence = "aawwhn" if sentence == "yawn" else sentence
+                sentence = "aawwhn" if sentence.lower() == "yawn" else sentence
+                sentence = "tsoo" if sentence.lower() == "zoo" else sentence
                 # self.robot.say_text(text=sentence, duration_scalar=int(duration), in_parallel=True)
                 self.robot.say_text(text=sentence, in_parallel=True).wait_for_completed()
                 # self.robot.say_text(text=sentence, duration_scalar=int(duration)).wait_for_completed()
