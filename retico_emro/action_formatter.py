@@ -65,7 +65,7 @@ class ActionExecutionModule(abstract.AbstractModule):
                 image_base = parts[-2]
                 timeout    = parts[-1]
                 try:
-                    face_image = Image.open(f"../../retico-emro/cozmo_faces/{image_base}.png")
+                    face_image = Image.open(f"../../../retico-emro/cozmo_faces/{image_base}.png")
                 except FileNotFoundError:
                     print(f"Could not find face file {image_base}. Continuing without setting face.")
                     continue
