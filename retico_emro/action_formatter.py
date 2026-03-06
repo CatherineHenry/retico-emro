@@ -1,4 +1,6 @@
+import pickle
 import re
+import shutil
 
 import cozmo
 from PIL import Image
@@ -9,6 +11,7 @@ import retico_core
 from retico_core import abstract, UpdateType
 from retico_core.text import TextIU
 from retico_gred.gred_module import GREDTextIU
+from pathlib import Path
 
 
 class ActionExecutionModule(abstract.AbstractModule):
@@ -131,6 +134,27 @@ class ActionExecutionModule(abstract.AbstractModule):
         for iu, typ in update_message:
             if typ == UpdateType.ADD:
                 print(f"Executing action IU: {iu}")
+                save_data = iu.meta_data.get('save_data')
+                execution_uuid = iu.meta_data.get('execution_uuid')
+                date_timestamp = iu.meta_data.get('date_timestamp')
+                prior_execution_date_timestamp = iu.meta_data.get('prior_execution_date_timestamp')
+
+                if save_data:
+                    offline_data_path = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+                    # Just copy everything over, so any of the functions that add to this file can copy everything
+                    if not Path(offline_data_path).is_dir():
+                        if len(execution_uuid.split("_")) > 1:
+                            prior_execution_uuid = "_".join(execution_uuid.split("_")[0:-1])
+                            prior_execution_path = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+                            shutil.copytree(prior_execution_path,
+                                            f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}',
+                                            dirs_exist_ok = True)
+                        else:
+                            Path(offline_data_path).mkdir(parents=True, exist_ok=True)
+
+                    with open(f'{offline_data_path}/emotion_actions_{execution_uuid}.pickle', 'ab+') as file_handler:
+                        pickle.dump(iu.payload, file_handler)
+
                 self.execute(iu.payload)
 
                 # prepare result update
