@@ -86,7 +86,7 @@ class ActionExecutionModule(abstract.AbstractModule):
                 rest = token[len("turn_in_place_"):]
                 parts = rest.split("_")
                 angle = degrees(int(parts[-2]))
-                speed = Angle(int(parts[-1]))
+                speed = Angle(parts[-1])
                 self.robot.turn_in_place(angle, accel=speed, in_parallel=True)
                 continue
 
