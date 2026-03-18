@@ -1,3 +1,4 @@
+import os
 import pickle
 import re
 import shutil
@@ -50,8 +51,10 @@ class ActionExecutionModule(abstract.AbstractModule):
                 #         sentence+=part
                 # # self.robot.set_robot_volume(1)
 
-                sentence = "aawwhn" if sentence.lower() == "yawn" else sentence
-                sentence = "tsoo" if sentence.lower() == "zoo" else sentence
+
+                # sentence = "aawwhn" if sentence.lower() == "yawn" else sentence
+                # sentence = "tsoo" if sentence.lower() == "zoo" else sentence
+                # sentence = "mmm" if sentence.lower() == "mm" else sentence
                 # self.robot.say_text(text=sentence, duration_scalar=int(duration), in_parallel=True)
                 self.robot.say_text(text=sentence, in_parallel=True).wait_for_completed()
                 # self.robot.say_text(text=sentence, duration_scalar=int(duration)).wait_for_completed()
@@ -141,19 +144,22 @@ class ActionExecutionModule(abstract.AbstractModule):
                 prior_execution_date_timestamp = iu.meta_data.get('prior_execution_date_timestamp')
 
                 if save_data:
-                    offline_data_path = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+                    filename = f"emotion_actions_{execution_uuid}.pickle"
+                    offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
                     # Just copy everything over, so any of the functions that add to this file can copy everything
-                    if not Path(offline_data_path).is_dir():
-                        if len(execution_uuid.split("_")) > 1:
-                            prior_execution_uuid = "_".join(execution_uuid.split("_")[0:-1])
-                            prior_execution_path = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
-                            shutil.copytree(prior_execution_path,
-                                            f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}',
-                                            dirs_exist_ok = True)
-                        else:
-                            Path(offline_data_path).mkdir(parents=True, exist_ok=True)
+                    if not Path(offline_data_dir).is_dir():
+                        Path(offline_data_dir).mkdir(parents=True, exist_ok=True)
+                    split_execution_uuid = execution_uuid.split("_")
+                    # only want to copy and rename prior execution files if running from a prior execution and if it hasn't been copied already
+                    if len(split_execution_uuid) > 1:
+                        if not os.path.exists(f"{offline_data_dir}/{filename}"):
+                            prior_execution_uuid = "_".join(split_execution_uuid[0:-1])
+                            prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+                            prior_execution_filename =  f"emotion_actions_{prior_execution_uuid}.pickle"
+                            shutil.copyfile(f'{prior_execution_dir}/{prior_execution_filename}',
+                                    f'{offline_data_dir}/{filename}')
 
-                    with open(f'{offline_data_path}/emotion_actions_{execution_uuid}.pickle', 'ab+') as file_handler:
+                    with open(f'{offline_data_dir}/{filename}', 'ab+') as file_handler:
                         pickle.dump(iu.payload, file_handler)
 
                 self.execute(iu.payload)
