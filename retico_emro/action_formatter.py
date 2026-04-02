@@ -38,6 +38,7 @@ class ActionExecutionModule(abstract.AbstractModule):
         # strip out any leftover model markers
         # actions_str is like "set_volume_30 say_text_Hi! move_head_0_-10_0_80 ..."
         # split on spaces following a number, otherwise we have erroneous split on some "say text" that has a space in it
+        starting_rotation = self.robot.pose.rotation.angle_z.degrees
         for token in re.split(r'(?<=\d)\s+', actions_str):
             if token.startswith("say_text_"):
                 rest = token[len("say_text_"):]
@@ -127,9 +128,14 @@ class ActionExecutionModule(abstract.AbstractModule):
                     except ValueError:
                         args.append(a)
 
-            # dispatch to robot
-            getattr(self.robot, name)(*args)
+            try:
+                # dispatch to robot
+                getattr(self.robot, name)(*args)
+            except AttributeError as e:
+                print(f"Received incomplete instruction from GRED: {e}. Action string: {actions_str}")
+                continue
 
+        self.robot.turn_in_place(starting_rotation, in_parallel=True)
         # reset lift height to 0 so it doesn't interfere with the camera
         self.robot.set_lift_height(0.0, in_parallel=True).wait_for_completed()
 
@@ -145,7 +151,11 @@ class ActionExecutionModule(abstract.AbstractModule):
 
                 if save_data:
                     filename = f"emotion_actions_{execution_uuid}.pickle"
-                    offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+                    if "sim" in execution_uuid:
+                        offline_data_dir = f'../client/IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+                    else:
+                        offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
+
                     # Just copy everything over, so any of the functions that add to this file can copy everything
                     if not Path(offline_data_dir).is_dir():
                         Path(offline_data_dir).mkdir(parents=True, exist_ok=True)
@@ -154,7 +164,11 @@ class ActionExecutionModule(abstract.AbstractModule):
                     if len(split_execution_uuid) > 1:
                         if not os.path.exists(f"{offline_data_dir}/{filename}"):
                             prior_execution_uuid = "_".join(split_execution_uuid[0:-1])
-                            prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+                            if "sim" in execution_uuid:
+                                prior_execution_dir = f'../client/IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+                            else:
+                                prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
+
                             prior_execution_filename =  f"emotion_actions_{prior_execution_uuid}.pickle"
                             shutil.copyfile(f'{prior_execution_dir}/{prior_execution_filename}',
                                     f'{offline_data_dir}/{filename}')
