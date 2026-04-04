@@ -38,7 +38,7 @@ class ActionExecutionModule(abstract.AbstractModule):
         # strip out any leftover model markers
         # actions_str is like "set_volume_30 say_text_Hi! move_head_0_-10_0_80 ..."
         # split on spaces following a number, otherwise we have erroneous split on some "say text" that has a space in it
-        starting_rotation = self.robot.pose.rotation.angle_z.degrees
+        starting_rotation = self.robot.pose.rotation.angle_z
         for token in re.split(r'(?<=\d)\s+', actions_str):
             if token.startswith("say_text_"):
                 rest = token[len("say_text_"):]
@@ -135,7 +135,8 @@ class ActionExecutionModule(abstract.AbstractModule):
                 print(f"Received incomplete instruction from GRED: {e}. Action string: {actions_str}")
                 continue
 
-        self.robot.turn_in_place(starting_rotation, in_parallel=True)
+        # return to the starting rotation before emotion actions
+        self.robot.turn_in_place(starting_rotation, in_parallel=True, is_absolute=True)
         # reset lift height to 0 so it doesn't interfere with the camera
         self.robot.set_lift_height(0.0, in_parallel=True).wait_for_completed()
 
