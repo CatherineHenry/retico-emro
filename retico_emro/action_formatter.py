@@ -7,6 +7,7 @@ import cozmo
 from PIL import Image
 from cozmo import exceptions
 from cozmo.util import degrees, Angle
+from opentelemetry import trace
 
 import retico_core
 from retico_core import abstract, UpdateType
@@ -14,6 +15,7 @@ from retico_core.text import TextIU
 from retico_gred.gred_module import GREDTextIU
 from pathlib import Path
 
+tracer = trace.get_tracer("my.tracer.name")
 
 class ActionExecutionModule(abstract.AbstractModule):
     @staticmethod
@@ -34,7 +36,8 @@ class ActionExecutionModule(abstract.AbstractModule):
         super().__init__(**kwargs)
         self.robot = robot
 
-    def execute(self, actions_str):
+    @tracer.start_as_current_span("action_formatter_execute")
+    def execute(self, actions_str, flow_uuid=None):
         # strip out any leftover model markers
         # actions_str is like "set_volume_30 say_text_Hi! move_head_0_-10_0_80 ..."
         # split on spaces following a number, otherwise we have erroneous split on some "say text" that has a space in it
@@ -57,7 +60,8 @@ class ActionExecutionModule(abstract.AbstractModule):
                 # sentence = "tsoo" if sentence.lower() == "zoo" else sentence
                 # sentence = "mmm" if sentence.lower() == "mm" else sentence
                 # self.robot.say_text(text=sentence, duration_scalar=int(duration), in_parallel=True)
-                self.robot.say_text(text=sentence, in_parallel=True).wait_for_completed()
+                with tracer.start_as_current_span("robot_say_text") as span:
+                    self.robot.say_text(text=sentence, in_parallel=True).wait_for_completed()
                 # self.robot.say_text(text=sentence, duration_scalar=int(duration)).wait_for_completed()
                 # self.robot.set_robot_volume(0)
                 continue
@@ -72,7 +76,7 @@ class ActionExecutionModule(abstract.AbstractModule):
                 try:
                     face_image = Image.open(f"../../../retico-emro/cozmo_faces/{image_base}.png")
                 except FileNotFoundError:
-                    print(f"Could not find face file {image_base}. Continuing without setting face.")
+                    print(f"[{flow_uuid}] Could not find face file {image_base}. Continuing without setting face.")
                     continue
                 # resize to fit on Cozmo's face screen
                 face_image = face_image.resize(cozmo.oled_face.dimensions(), Image.BICUBIC)
@@ -80,9 +84,10 @@ class ActionExecutionModule(abstract.AbstractModule):
                 face_image = cozmo.oled_face.convert_image_to_screen_data(face_image, invert_image=False)
                 # dispatch to robot
                 try:
-                    self.robot.display_oled_face_image(face_image, duration_ms=float(timeout) * 1000.0, in_parallel=True)
+                    with tracer.start_as_current_span("robot_display_oled_face") as span:
+                        self.robot.display_oled_face_image(face_image, duration_ms=float(timeout) * 1000.0, in_parallel=True)
                 except exceptions.RobotBusy:
-                    print("Already have a face in action. Continuing execution.")
+                    print("[{flow_uuid}] Already have a face in action. Continuing execution.")
                 continue
 
 
@@ -91,7 +96,8 @@ class ActionExecutionModule(abstract.AbstractModule):
                 parts = rest.split("_")
                 angle = degrees(int(parts[-2]))
                 speed = Angle(parts[-1])
-                self.robot.turn_in_place(angle, accel=speed, in_parallel=True)
+                with tracer.start_as_current_span("robot_turn_in_place") as span:
+                    self.robot.turn_in_place(angle, accel=speed, in_parallel=True)
                 continue
 
             if token.startswith("set_lift_height_"):
@@ -99,7 +105,8 @@ class ActionExecutionModule(abstract.AbstractModule):
                 parts = rest.split("_")
                 height = float(parts[-2])
                 speed = float(parts[-1])
-                self.robot.set_lift_height(height, duration=speed, in_parallel=True).wait_for_completed()
+                with tracer.start_as_current_span("robot_set_lift_height") as span:
+                    self.robot.set_lift_height(height, duration=speed, in_parallel=True).wait_for_completed()
                 continue
 
 
@@ -130,33 +137,31 @@ class ActionExecutionModule(abstract.AbstractModule):
 
             try:
                 # dispatch to robot
-                getattr(self.robot, name)(*args)
+                with tracer.start_as_current_span("robot_dispatch_getattr") as span:
+                    getattr(self.robot, name)(*args)
             except AttributeError as e:
-                print(f"Received incomplete instruction from GRED: {e}. Action string: {actions_str}")
+                print(f"[{flow_uuid}] Received incomplete instruction from GRED: {e}. Action string: {actions_str}")
                 continue
-
-        # return to the starting rotation before emotion actions
-        self.robot.turn_in_place(starting_rotation, in_parallel=True, is_absolute=True)
-        # reset lift height to 0 so it doesn't interfere with the camera
-        self.robot.set_lift_height(0.0, in_parallel=True).wait_for_completed()
+        with tracer.start_as_current_span("robot_turn_and_lift_height_at_end_of_action_formatter") as span:
+            # return to the starting rotation before emotion actions
+            self.robot.turn_in_place(starting_rotation, in_parallel=True, is_absolute=True)
+            # reset lift height to 0 so it doesn't interfere with the camera
+            self.robot.set_lift_height(0.0, in_parallel=True).wait_for_completed()
 
     def process_update(self, update_message):
         # for every ADD update carry the payload into execute()
         for iu, typ in update_message:
             if typ == UpdateType.ADD:
-                print(f"Executing action IU: {iu}")
                 save_data = iu.meta_data.get('save_data')
                 execution_uuid = iu.meta_data.get('execution_uuid')
                 date_timestamp = iu.meta_data.get('date_timestamp')
+                flow_uuid = iu.meta_data.get('flow_uuid')
                 prior_execution_date_timestamp = iu.meta_data.get('prior_execution_date_timestamp')
+                print(f"[{flow_uuid}] Executing action IU: {iu}")
 
                 if save_data:
                     filename = f"emotion_actions_{execution_uuid}.pickle"
-                    if "sim" in execution_uuid:
-                        offline_data_dir = f'../client/IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
-                    else:
-                        offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
-
+                    offline_data_dir = f'./IAC_output_data/{date_timestamp}/data_for_offline_replay/{execution_uuid}'
                     # Just copy everything over, so any of the functions that add to this file can copy everything
                     if not Path(offline_data_dir).is_dir():
                         Path(offline_data_dir).mkdir(parents=True, exist_ok=True)
@@ -165,11 +170,7 @@ class ActionExecutionModule(abstract.AbstractModule):
                     if len(split_execution_uuid) > 1:
                         if not os.path.exists(f"{offline_data_dir}/{filename}"):
                             prior_execution_uuid = "_".join(split_execution_uuid[0:-1])
-                            if "sim" in execution_uuid:
-                                prior_execution_dir = f'../client/IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
-                            else:
-                                prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
-
+                            prior_execution_dir = f'./IAC_output_data/{prior_execution_date_timestamp}/data_for_offline_replay/{prior_execution_uuid}'
                             prior_execution_filename =  f"emotion_actions_{prior_execution_uuid}.pickle"
                             shutil.copyfile(f'{prior_execution_dir}/{prior_execution_filename}',
                                     f'{offline_data_dir}/{filename}')
@@ -177,7 +178,7 @@ class ActionExecutionModule(abstract.AbstractModule):
                     with open(f'{offline_data_dir}/{filename}', 'ab+') as file_handler:
                         pickle.dump(iu.payload, file_handler)
 
-                self.execute(iu.payload)
+                self.execute(iu.payload, flow_uuid)
 
                 # prepare result update
                 output_iu = self.create_iu(iu)
