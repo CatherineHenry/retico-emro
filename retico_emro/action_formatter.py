@@ -143,6 +143,7 @@ class ActionExecutionModule(abstract.AbstractModule):
                 print(f"[{flow_uuid}] Received incomplete instruction from GRED: {e}. Action string: {actions_str}")
                 continue
         with tracer.start_as_current_span("robot_turn_and_lift_height_at_end_of_action_formatter") as span:
+            print(f"[{flow_uuid} Turning robot back to {starting_rotation} from current angle {self.robot.pose.rotation.angle_z}")
             # return to the starting rotation before emotion actions
             self.robot.turn_in_place(starting_rotation, in_parallel=True, is_absolute=True)
             # reset lift height to 0 so it doesn't interfere with the camera
